@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -14,7 +15,7 @@ import (
 
 var db *sql.DB
 
-// Project represents a portfolio project
+// --- Models ---
 type Project struct {
 	ID          int      `json:"id"`
 	Title       string   `json:"title"`
@@ -25,7 +26,6 @@ type Project struct {
 	ImageURL    string   `json:"image_url,omitempty"`
 }
 
-// Profile represents user profile information
 type Profile struct {
 	Name     string   `json:"name"`
 	Title    string   `json:"title"`
@@ -37,7 +37,6 @@ type Profile struct {
 	ImageURL string   `json:"image_url,omitempty"`
 }
 
-// ContactMessage represents a contact form submission
 type ContactMessage struct {
 	Name    string `json:"name"`
 	Email   string `json:"email"`
@@ -45,47 +44,32 @@ type ContactMessage struct {
 	Message string `json:"message"`
 }
 
-// Response represents a generic API response
 type Response struct {
 	Success bool        `json:"success"`
 	Message string      `json:"message"`
 	Data    interface{} `json:"data,omitempty"`
 }
 
-// --- Handlers (you can later replace in-memory with MySQL queries) ---
-
-var profile = Profile{
-	Name:     "John Doe",
-	Title:    "Full Stack Developer",
-	Bio:      "Passionate about creating innovative web applications with modern technologies. Specialized in React.js frontend development and Go backend services.",
-	Email:    "john.doe@example.com",
-	GitHub:   "https://github.com/johndoe",
-	LinkedIn: "https://linkedin.com/in/john-doe",
-	Skills:   []string{"Go", "React", "JavaScript", "TypeScript", "PostgreSQL", "MongoDB", "Docker", "AWS"},
-	ImageURL: "https://via.placeholder.com/150",
-}
-
-// --- Fetch Profile from MySQL ---
+// --- Handlers ---
 func getProfile(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	var p Profile
 	var skills []string
 
-	// Fetch profile (assuming only one profile with id=1)
 	row := db.QueryRow("SELECT name, title, bio, email, github, linkedin, image_url FROM profile WHERE id = 1")
 	if err := row.Scan(&p.Name, &p.Title, &p.Bio, &p.Email, &p.GitHub, &p.LinkedIn, &p.ImageURL); err != nil {
 		http.Error(w, "Profile not found", http.StatusNotFound)
 		return
 	}
 
-	// Fetch skills
 	rows, err := db.Query("SELECT skill FROM skills WHERE profile_id = 1")
 	if err != nil {
 		http.Error(w, "Error fetching skills", http.StatusInternalServerError)
 		return
 	}
 	defer rows.Close()
+
 	for rows.Next() {
 		var skill string
 		if err := rows.Scan(&skill); err == nil {
@@ -101,7 +85,6 @@ func getProfile(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// --- Fetch All Projects from MySQL ---
 func getProjects(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
@@ -116,7 +99,6 @@ func getProjects(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var pr Project
 		if err := rows.Scan(&pr.ID, &pr.Title, &pr.Description, &pr.GitHub, &pr.Demo, &pr.ImageURL); err == nil {
-			// Fetch tech stack for this project
 			techRows, _ := db.Query("SELECT tech FROM project_tech WHERE project_id = ?", pr.ID)
 			var techs []string
 			for techRows.Next() {
@@ -138,7 +120,6 @@ func getProjects(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// --- Fetch Single Project by ID ---
 func getProject(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	vars := mux.Vars(r)
@@ -155,7 +136,6 @@ func getProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch tech stack
 	techRows, _ := db.Query("SELECT tech FROM project_tech WHERE project_id = ?", id)
 	var techs []string
 	for techRows.Next() {
@@ -189,8 +169,18 @@ func healthCheck(w http.ResponseWriter, r *http.Request) {
 
 // --- main ---
 func main() {
-	// ✅ Setup MySQL connection inside main
-	dsn := "root:varel0306@tcp(my-app-db-rds.cu9squsao8nh.us-east-1.rds.amazonaws.com:3306)/portfolio_db"
+	// ✅ Use environment variables instead of hardcoding
+	dbUser := os.Getenv("DB_USER")
+	dbPass := os.Getenv("DB_PASS")
+	dbHost := os.Getenv("DB_HOST")
+	dbName := os.Getenv("DB_NAME")
+
+	if dbUser == "" || dbPass == "" || dbHost == "" || dbName == "" {
+		log.Fatal("❌ Missing required database environment variables")
+	}
+
+	dsn := dbUser + ":" + dbPass + "@tcp(" + dbHost + ")/" + dbName
+
 	var err error
 	db, err = sql.Open("mysql", dsn)
 	if err != nil {
@@ -199,7 +189,7 @@ func main() {
 	if err = db.Ping(); err != nil {
 		log.Fatal("MySQL unreachable:", err)
 	}
-	log.Println("Connected to MySQL!")
+	log.Println("✅ Connected to MySQL!")
 
 	// Setup router
 	r := mux.NewRouter()
@@ -218,7 +208,7 @@ func main() {
 		AllowCredentials: true,
 	})
 
-	log.Println("Server running on :8080")
+	log.Println("🚀 Server running on :8080")
 	if err := http.ListenAndServe(":8080", c.Handler(r)); err != nil {
 		log.Fatal(err)
 	}
