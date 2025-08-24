@@ -170,16 +170,10 @@ func healthCheck(w http.ResponseWriter, r *http.Request) {
 // --- main ---
 func main() {
 	// ✅ Use environment variables instead of hardcoding
-	dbUser := os.Getenv("DB_USER")
-	dbPass := os.Getenv("DB_PASS")
-	dbHost := os.Getenv("DB_HOST")
-	dbName := os.Getenv("DB_NAME")
-
-	if dbUser == "" || dbPass == "" || dbHost == "" || dbName == "" {
-		log.Fatal("❌ Missing required database environment variables")
+	dsn := os.Getenv("DB_URL")
+	if dsn == "" {
+		log.Fatal("DB_URL not set")
 	}
-
-	dsn := dbUser + ":" + dbPass + "@tcp(" + dbHost + ")/" + dbName
 
 	var err error
 	db, err = sql.Open("mysql", dsn)
