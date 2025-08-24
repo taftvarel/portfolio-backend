@@ -169,7 +169,7 @@ func healthCheck(w http.ResponseWriter, r *http.Request) {
 
 // --- main ---
 func main() {
-	// ✅ Use environment variables instead of hardcoding
+	//Use environment variables instead of hardcoding
 	dsn := os.Getenv("DB_URL")
 	if dsn == "" {
 		log.Fatal("DB_URL not set")
